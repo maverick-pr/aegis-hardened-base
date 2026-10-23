@@ -33,10 +33,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: hadolint/hadolint-action@v3.1.0
-        with:
-          dockerfile: Dockerfile
-          config: .hadolint.yaml
+      # Pinned to the same hadolint release used locally (`make scan`), so CI and
+      # developer results never diverge. hadolint-action bundles an older build.
+      - name: hadolint
+        run: docker run --rm -i -v "$PWD/.hadolint.yaml:/.hadolint.yaml:ro" hadolint/hadolint:v2.15.1 hadolint -c /.hadolint.yaml - < Dockerfile
 
   build:
     needs: lint

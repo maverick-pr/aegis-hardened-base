@@ -227,7 +227,7 @@ RUN set -eux; \
     mkdir -p /patch/var/lib/dpkg/status.d; \
     for pkg in libssl3 ca-certificates tzdata; do \
         dpkg -L "$pkg" | grep -v '^/usr/share/doc' | while read -r f; do \
-            [ -f "$f" ] || [ -L "$f" ] && cp --parents -P "$f" /patch/ || true; \
+            if [ -f "$f" ] || [ -L "$f" ]; then cp --parents -P "$f" /patch/; fi; \
         done; \
         dpkg -s "$pkg" | grep -v '^Status:' > "/patch/var/lib/dpkg/status.d/${pkg}"; \
         cat /var/lib/dpkg/info/${pkg}*.md5sums > "/patch/var/lib/dpkg/status.d/${pkg}.md5sums"; \
