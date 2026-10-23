@@ -20,6 +20,10 @@ on:
     - cron: "0 3 * * 1"      # Monday 03:00 UTC — weekly rebuild against fresh Debian security archive
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: write

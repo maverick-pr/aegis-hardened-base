@@ -40,7 +40,7 @@ ARG PYTHON_SHA256="9cb057caa588f122577a5054a22531cd9c23ab6706f1a19bc95a55380a895
 ARG NODE_VERSION="22.23.4"
 # SHA-256 for linux-arm64 (Apple Silicon / ARM CI) and linux-x64 selected at build time
 ARG NODE_SHA256_ARM64="6287aa46b6c375d816e63ae66d024fbbfd70404825aabdfdf898a970871d2f4b"
-ARG NODE_SHA256_AMD64="b8492284c76a54baf58d61668dd0e41ee0fc98adabf9503d30f05d08f55b4406"
+ARG NODE_SHA256_AMD64="1805bcd35e6815559bd2eb97db438d3fdb0eb3a5e6a977b7c1badca76337e9ce"
 
 # ── Stage 1: shared build toolchain ──────────────────────────────────────────
 # Pinned base. Only used to compile; it is NEVER in the final image.
