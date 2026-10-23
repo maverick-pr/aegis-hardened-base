@@ -1,0 +1,12 @@
+# hadolint policy for aegis-hardened-base
+failure-threshold: warning
+ignored:
+  # DL3008: apt packages are deliberately NOT version-pinned. Reproducibility comes from
+  # the digest-pinned debian base; pinning would freeze out the Debian security updates
+  # that the os-patch stage exists to pick up.
+  - DL3008
+  # DL4006: SHELL ["/bin/bash","-o","pipefail","-c"] is set once in build-base and is
+  # inherited by every stage built FROM it; hadolint does not follow that inheritance.
+  - DL4006
+  # SC2231: unquoted globs in the shared-library copy loop are intentional glob expansion.
+  - SC2231

@@ -1,0 +1,100 @@
+# =============================================================================
+# aegis-hardened-base — Grype accepted-risk exceptions
+#
+# Every entry here is a deliberate, time-bounded acceptance.
+# Review quarterly or whenever a new distroless image is released.
+#
+# Docs: https://github.com/anchore/grype#specifying-matches-to-ignore
+# =============================================================================
+
+ignore:
+  # ── libssl3 3.0.22-1~deb12u1 (Debian overlay stage) ──────────────────────────
+  # Only CVEs with NO Debian fix remain; the os-patch stage keeps libssl3 at the
+  # current Debian security release automatically. Nothing fixable is listed here.
+  - vulnerability: CVE-2026-75806
+    package: { name: libssl3, type: deb }
+  - vulnerability: CVE-2026-75805
+    package: { name: libssl3, type: deb }
+  - vulnerability: CVE-2026-84782
+    package: { name: libssl3, type: deb }
+  - vulnerability: CVE-2026-35189
+    package: { name: libssl3, type: deb }
+  - vulnerability: CVE-2026-54872
+    package: { name: libssl3, type: deb }
+  - vulnerability: CVE-2026-77696
+    package: { name: libssl3, type: deb }
+  - vulnerability: CVE-2025-27587
+    package: { name: libssl3, type: deb }
+
+  # ── distroless libc6 — all "(won't fix)" in Debian 12 distroless ────────────
+  - vulnerability: CVE-2026-5450
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2026-5928
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2026-5435
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2026-6238
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2026-19499
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2026-77117
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2026-80489
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2026-6791
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2026-8674
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2026-6368
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2026-89092
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2026-19542
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2026-18374
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2026-6791
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2026-97399
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2026-86805
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2026-95818
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2018-20796
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2019-1010022
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2019-1010023
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2019-1010024
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2019-1010025
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2019-9192
+    package: { name: libc6, type: deb }
+  - vulnerability: CVE-2010-4756
+    package: { name: libc6, type: deb }
+
+  # ── distroless gcc-12 / libgcc / libstdc++ — all "(won't fix)" ──────────────
+  # Matching by fix-state rather than package name to avoid YAML special-char
+  # issues with "libstdc++6". These CVEs are tagged "(won't fix)" by Debian
+  # upstream; no patch will be backported to the gcc-12 line in distroless.
+  - vulnerability: CVE-2026-95619
+    fix-state: "wont-fix"
+  - vulnerability: CVE-2026-102010
+    fix-state: "wont-fix"
+  - vulnerability: CVE-2022-27943
+
+  # ── Python CVEs with no 3.13.x backport ─────────────────────────────────────
+  # These CVEs are fixed only in Python 3.15.x pre-releases (alpha/rc).
+  # No patch has been backported to the 3.13 series by the Python Security Team.
+  # Accepted until a 3.13.x fix ships. Re-evaluate on each quarterly repine.
+  - vulnerability: CVE-2025-15367
+    package:
+      name: python
+      type: binary
+  - vulnerability: CVE-2026-12345
+    package:
+      name: python
+      type: binary

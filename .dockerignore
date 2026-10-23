@@ -1,0 +1,75 @@
+# Build context exclusions
+# Keep the build context minimal — only what the Dockerfile COPYs needs to be here.
+# Everything else is an attack surface during build (and slows transfer).
+
+# Version control
+.git
+.gitignore
+.gitattributes
+**/.git
+
+# CI / CD
+.github
+.gitlab-ci.yml
+.circleci
+Jenkinsfile
+.travis.yml
+
+# Local dev / IDE
+.vscode
+.idea
+*.iml
+.DS_Store
+Thumbs.db
+
+# Test / coverage artefacts
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.pytest_cache
+**/.coverage
+**/coverage
+**/htmlcov
+**/node_modules
+**/.npm
+
+# Secrets — should never be in the build context; listed here as a last-resort guard
+.env
+*.env
+.env.*
+secrets/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+cosign.key
+cosign.pub
+
+# Docs / markdown
+*.md
+docs/
+README*
+CHANGELOG*
+SECURITY*
+LICENCE*
+LICENSE*
+
+# Scanning output
+*.sarif
+*.sbom
+*.spdx
+trivy-results.*
+grype-results.*
+
+# Docker files for other environments
+docker-compose*.yml
+Dockerfile.*
+!Dockerfile
+
+# Local build artefacts
+dist/
+build/
+*.tar.gz
+*.tgz
+*.zip

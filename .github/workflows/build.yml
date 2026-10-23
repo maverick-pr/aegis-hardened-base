@@ -1,0 +1,191 @@
+# =============================================================================
+# aegis-hardened-base — build → scan → push → keyless sign → attest SBOM
+#
+# Runs on every push/PR, and weekly so new Debian/CPython/Node advisories surface
+# as a red badge rather than silently ageing in the published image.
+# Each architecture builds on its own native runner (no QEMU: the Python PGO build
+# would take hours under emulation), is scanned independently, and is pushed by
+# digest. A final job stitches the multi-arch manifest, signs it with the
+# workflow's OIDC identity (no private key anywhere) and attaches the SBOM.
+# =============================================================================
+name: build-scan-sign
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md"]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * 1"      # Monday 03:00 UTC — weekly rebuild against fresh Debian security archive
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write            # keyless cosign: OIDC token for Fulcio
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          config: .hadolint.yaml
+
+  build:
+    needs: lint
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build (local, for scanning)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          load: true
+          tags: aegis-hardened-base:scan
+          build-args: |
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+            GIT_COMMIT=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,scope=${{ matrix.arch }},mode=max
+
+      # ── Gates: any fixable CVE at ANY severity fails the build ───────────────
+      - name: Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: aegis-hardened-base:scan
+          exit-code: "1"
+          severity: CRITICAL,HIGH,MEDIUM,LOW
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          format: table
+
+      - name: Grype
+        uses: anchore/scan-action@v6
+        with:
+          image: aegis-hardened-base:scan
+          fail-build: true
+          severity-cutoff: low
+          output-format: table
+        # .grype.yaml in the repo root is picked up automatically
+
+      - name: Dockle (CIS image benchmark)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            goodwithtech/dockle:v0.4.15 --exit-code 1 --exit-level warn aegis-hardened-base:scan
+
+      - name: Runtime smoke test (non-root, read-only, no caps, seccomp)
+        run: |
+          docker run --rm --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --security-opt seccomp=seccomp-profile.json \
+            --tmpfs /tmp:noexec,nosuid,nodev --user 65532:65532 \
+            aegis-hardened-base:scan -c "import ssl,sqlite3,subprocess; ssl.create_default_context(); print(subprocess.run(['/opt/node/bin/node','--version'],capture_output=True,text=True).stdout)"
+
+      # ── Push by digest (skipped on PRs) ──────────────────────────────────────
+      - name: Login to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push by digest
+        if: github.event_name != 'pull_request'
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+            GIT_COMMIT=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p /tmp/digests
+          echo "${{ steps.push.outputs.digest }}" | sed 's/sha256://' > "/tmp/digests/${{ matrix.arch }}"
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: digest-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  release:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch manifest
+        id: manifest
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          SHORT=${GITHUB_SHA::7}
+          docker buildx imagetools create \
+            -t "$IMAGE:latest" -t "$IMAGE:$DATE" -t "$IMAGE:sha-$SHORT" \
+            $(for d in /tmp/digests/*; do printf "$IMAGE@sha256:%s " "$(cat "$d")"; done)
+          DIGEST=$(docker buildx imagetools inspect "$IMAGE:latest" --format '{{json .Manifest}}' | jq -r .digest)
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "ref=$IMAGE@$DIGEST" >> "$GITHUB_OUTPUT"
+
+      - uses: sigstore/cosign-installer@v3
+      - uses: anchore/sbom-action/download-syft@v0
+
+      - name: Keyless sign (Sigstore / Rekor transparency log)
+        run: cosign sign --yes "${{ steps.manifest.outputs.ref }}"
+
+      - name: SBOM + attestation
+        run: |
+          syft "${{ steps.manifest.outputs.ref }}" -o spdx-json > sbom.spdx.json
+          cosign attest --yes --type spdxjson --predicate sbom.spdx.json "${{ steps.manifest.outputs.ref }}"
+
+      - name: Verify what we just published
+        run: |
+          cosign verify "${{ steps.manifest.outputs.ref }}" \
+            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            | jq -r '.[0].critical.image."docker-manifest-digest"'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.spdx.json

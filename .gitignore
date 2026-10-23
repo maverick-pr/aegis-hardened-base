@@ -1,0 +1,16 @@
+# Signing material — NEVER commit
+cosign.key
+cosign.password
+
+# Build/scan artefacts
+*.tar
+*.spdx.json
+*.cdx.json
+*.sig
+*.bundle
+
+# Secrets guard
+.env
+.env.*
+*.pem
+*.p12
